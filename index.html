@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 英文智慧命題與教材檢核系統（示範版 v1.0）</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 頂部導覽列 -->
+  <header class="site-header no-print">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">EQ</div>
+        <div>
+          <div class="brand-title-row">
+            <h1>AI 英文智慧命題與教材檢核系統</h1>
+            <span class="demo-pill">示範版 v1.0</span>
+          </div>
+          <p class="brand-subtitle">國中英文閱讀原創命題藍圖 × 獨立 AI 檢核流程 × 英文編輯人工審核</p>
+        </div>
+      </div>
+
+      <nav class="header-actions" aria-label="快捷功能">
+        <a href="#dashboard" class="nav-link">儀表板</a>
+        <a href="#prompt-studio" class="nav-link">命題設定</a>
+        <a href="#review-workbench" class="nav-link">題庫與審核</a>
+        <button type="button" id="btnExportCsv" class="btn btn-outline-light">匯出 CSV</button>
+        <button type="button" id="btnOpenReport" class="btn btn-accent">品質檢核報告</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- 示範版重要聲明 -->
+  <section class="demo-banner no-print" aria-label="示範版說明">
+    <div class="container demo-banner-inner">
+      <span class="banner-tag">本機示範版說明</span>
+      <p>
+        本系統第一版採純前端本機運作（不串接付費 AI API 或後端），所有示範題目、檢核結果與審核紀錄皆儲存於您的瀏覽器 <code>localStorage</code>。
+        系統<strong>不會</strong>假裝已透過 AI 自動生成題目，亦<strong>不會</strong>將未檢核項目自動標示為通過；您可複製提示詞至 ChatGPT／Gemini 產生原創草稿後新增入庫，並逐項完成品質檢核與人工審核。原始會考 PDF 僅供命題規格研究，未收錄於公開示範題庫。
+      </p>
+    </div>
+  </section>
+
+  <main class="container main-content no-print">
+    <!-- 一、管理儀表板 -->
+    <section id="dashboard" class="section-block" aria-labelledby="dashboardHeading">
+      <div class="section-header">
+        <div>
+          <h2 id="dashboardHeading">管理儀表板</h2>
+          <p class="section-desc">即時追蹤原創題庫總量、品質檢核進度與英文編輯人工審核狀態</p>
+        </div>
+        <div class="section-tools">
+          <button type="button" id="btnAddDraftTop" class="btn btn-primary">＋ 新增原創題目草稿</button>
+          <button type="button" id="btnResetDemo" class="btn btn-ghost">重設示範資料</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <article class="kpi-card kpi-total">
+          <span class="kpi-label">題目總數</span>
+          <strong class="kpi-value" id="statTotal">0</strong>
+          <span class="kpi-sub">原創示範與自建題庫</span>
+        </article>
+        <article class="kpi-card kpi-pending">
+          <span class="kpi-label">待審核</span>
+          <strong class="kpi-value" id="statPending">0</strong>
+          <span class="kpi-sub">尚未完成人工簽核</span>
+        </article>
+        <article class="kpi-card kpi-revision">
+          <span class="kpi-label">需修改</span>
+          <strong class="kpi-value" id="statRevision">0</strong>
+          <span class="kpi-sub">已退回待修訂題目</span>
+        </article>
+        <article class="kpi-card kpi-approved">
+          <span class="kpi-label">已核准</span>
+          <strong class="kpi-value" id="statApproved">0</strong>
+          <span class="kpi-sub">通過 6 項檢核並簽核</span>
+        </article>
+      </div>
+
+      <div class="progress-panel">
+        <div class="progress-meta">
+          <span id="progressSummaryText">6 項品質檢核全數通過：0 / 0 題（0%）</span>
+          <div class="distribution-chips" id="distributionChips"></div>
+        </div>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="qaProgressBarWrap">
+          <div class="progress-fill" id="qaProgressFill" style="width: 0%;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 二、命題條件選擇與 AI 命題提示詞工作台 -->
+    <section id="prompt-studio" class="section-block" aria-labelledby="promptHeading">
+      <div class="section-header">
+        <div>
+          <h2 id="promptHeading">命題條件設定與 AI 命題提示詞產生器</h2>
+          <p class="section-desc">依據國中英文閱讀命題規格設定條件，產生可複製之原創命題提示詞（供貼至 ChatGPT 或 Gemini 使用）</p>
+        </div>
+        <span class="status-note-pill">提示詞工具｜未串接 AI API</span>
+      </div>
+
+      <div class="studio-grid">
+        <!-- 左側：條件設定表單 -->
+        <form id="promptConfigForm" class="card form-card" novalidate>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cfgGrade">適用年級</label>
+              <select id="cfgGrade" name="grade">
+                <option value="國中一年級">國中一年級</option>
+                <option value="國中二年級">國中二年級</option>
+                <option value="國中三年級">國中三年級</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="cfgType">題型設定</label>
+              <select id="cfgType" name="type">
+                <option value="文法選擇題">文法選擇題</option>
+                <option value="閱讀理解">閱讀理解</option>
+                <option value="情境式閱讀題">情境式閱讀題</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cfgCount">題目數量</label>
+              <select id="cfgCount" name="count">
+                <option value="3">3 題</option>
+                <option value="5" selected>5 題</option>
+                <option value="10">10 題</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="cfgDifficulty">目標難度</label>
+              <select id="cfgDifficulty" name="difficulty">
+                <option value="基礎（CEFR A1+–A2）">基礎（CEFR A1+–A2）</option>
+                <option value="中等（CEFR A2+）" selected>中等（CEFR A2+）</option>
+                <option value="進階（CEFR A2+–B1-）">進階（CEFR A2+–B1-）</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="cfgTopic">命題主題（請自行輸入）</label>
+            <input
+              type="text"
+              id="cfgTopic"
+              name="topic"
+              value="校園環保日與減塑行動"
+              placeholder="例如：校園社團活動、夜市旅遊、數位閱讀習慣、運動健康..."
+              maxlength="80"
+            />
+            <div class="topic-presets" aria-label="主題建議">
+              <span class="preset-label">快速帶入：</span>
+              <button type="button" class="chip-btn" data-topic="校園環保日與減塑行動">校園環保日</button>
+              <button type="button" class="chip-btn" data-topic="社區圖書館借閱規則">圖書館規則</button>
+              <button type="button" class="chip-btn" data-topic="青少年數位閱讀習慣">數位閱讀</button>
+              <button type="button" class="chip-btn" data-topic="週末戶外踏青與天氣">戶外踏青</button>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="btnCopyGenPrompt" class="btn btn-primary">複製 AI 命題提示詞</button>
+            <button type="button" id="btnFilterByConfig" class="btn btn-secondary">依此條件篩選示範題庫</button>
+          </div>
+          <p class="helper-text">
+            提示：本系統不直接呼叫外部模型生成題目；複製提示詞貼入 ChatGPT 或 Gemini 產生原創題目草稿後，可點擊「新增原創題目草稿」匯入下方題庫進行檢核與審核。
+          </p>
+        </form>
+
+        <!-- 右側：即時提示詞預覽 -->
+        <div class="card prompt-preview-card">
+          <div class="card-top-bar">
+            <h3>AI 原創命題提示詞預覽</h3>
+            <button type="button" id="btnCopyGenPromptSmall" class="btn btn-sm btn-accent">一鍵複製</button>
+          </div>
+          <textarea id="genPromptOutput" class="prompt-textarea" readonly aria-label="AI 原創命題提示詞內容"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- 三、原創示範題庫、品質檢核與人工審核工作台 -->
+    <section id="review-workbench" class="section-block" aria-labelledby="workbenchHeading">
+      <div class="section-header">
+        <div>
+          <h2 id="workbenchHeading">原創示範題庫、品質檢核與人工審核工作台</h2>
+          <p class="section-desc">內建 9 題原創國中英文閱讀示範題（非會考原題）；請逐題完成 6 項品質檢核並記錄人工審核意見</p>
+        </div>
+      </div>
+
+      <!-- 篩選列 -->
+      <div class="filter-bar card">
+        <div class="filter-controls">
+          <div class="filter-item">
+            <label for="filterGrade">年級</label>
+            <select id="filterGrade">
+              <option value="all">全部年級</option>
+              <option value="國中一年級">國中一年級</option>
+              <option value="國中二年級">國中二年級</option>
+              <option value="國中三年級">國中三年級</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label for="filterType">題型</label>
+            <select id="filterType">
+              <option value="all">全部題型</option>
+              <option value="文法選擇題">文法選擇題</option>
+              <option value="閱讀理解">閱讀理解</option>
+              <option value="情境式閱讀題">情境式閱讀題</option>
+            </select>
+          </div>
+          <div class="filter-item">
+            <label for="filterStatus">審核狀態</label>
+            <select id="filterStatus">
+              <option value="all">全部狀態</option>
+              <option value="pending">待審核</option>
+              <option value="needs_revision">需修改</option>
+              <option value="approved">已核准</option>
+            </select>
+          </div>
+          <div class="filter-item filter-search">
+            <label for="filterKeyword">關鍵字搜尋</label>
+            <input type="search" id="filterKeyword" placeholder="搜尋主題、題號、英文題幹或考點..." />
+          </div>
+          <div class="filter-item filter-reset-wrap">
+            <button type="button" id="btnClearFilters" class="btn btn-ghost btn-sm">清除篩選</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 主從雙欄工作台 -->
+      <div class="workbench-grid">
+        <!-- 左欄：題庫列表 -->
+        <aside class="question-list-panel" aria-label="題庫清單">
+          <div class="list-header">
+            <span id="listCountText">顯示 0 / 0 題</span>
+            <button type="button" id="btnAddDraftList" class="btn btn-sm btn-secondary">＋ 新增草稿</button>
+          </div>
+          <div id="questionList" class="question-list" role="listbox" aria-label="題目選擇清單"></div>
+        </aside>
+
+        <!-- 右欄：詳細檢視、品質檢核、人工審核 -->
+        <div class="detail-panel" id="detailPanel">
+          <!-- 空狀態 -->
+          <div id="emptyDetailState" class="card empty-state" hidden>
+            <p>目前篩選條件下無符合的題目，請調整篩選條件或新增原創題目草稿。</p>
+          </div>
+
+          <div id="activeDetailContent">
+            <!-- A. 題目內容預覽 -->
+            <article class="card detail-card">
+              <div class="detail-top">
+                <div class="meta-badges" id="detailMetaBadges"></div>
+                <div class="detail-top-actions">
+                  <button type="button" id="btnToggleAnswer" class="btn btn-sm btn-ghost">隱藏答案與解析</button>
+                  <button type="button" id="btnDeleteCustom" class="btn btn-sm btn-danger-ghost" hidden>刪除此自建草稿</button>
+                </div>
+              </div>
+
+              <div class="objective-bar">
+                <strong>教材學習目標：</strong>
+                <span id="detailObjective"></span>
+              </div>
+
+              <!-- 閱讀文本／情境卡（若該題有文本） -->
+              <div id="detailPassageBox" class="passage-box" hidden>
+                <div class="passage-label" id="detailPassageLabel">閱讀文本</div>
+                <pre class="passage-text" id="detailPassageText"></pre>
+                <div class="glossary-bar" id="detailGlossary" hidden></div>
+              </div>
+
+              <!-- 題幹 -->
+              <div class="stem-box">
+                <span class="stem-label">題目</span>
+                <p id="detailStem" class="stem-text"></p>
+              </div>
+
+              <!-- 四個選項 -->
+              <ul id="detailOptions" class="options-list"></ul>
+
+              <!-- 正確答案與繁中解析 -->
+              <div id="detailAnswerBox" class="answer-box">
+                <div class="answer-header">
+                  <span class="answer-badge">正確答案：<strong id="detailAnswer"></strong></span>
+                  <span class="source-badge" id="detailOriginTag">原創示範題</span>
+                </div>
+                <div class="explanation-block">
+                  <strong>繁體中文解析：</strong>
+                  <p id="detailExplanation"></p>
+                </div>
+              </div>
+            </article>
+
+            <!-- B. 題目品質檢核（6 大項＋獨立 AI 檢核提示詞） -->
+            <section class="card qa-card" aria-labelledby="qaCardHeading">
+              <div class="card-top-bar wrap-bar">
+                <div>
+                  <h3 id="qaCardHeading">題目品質檢核表（6 項指標）</h3>
+                  <p class="card-sub">尚未經 AI 或人工檢查的項目預設為「尚未檢核」，請逐項確認後手動標記。</p>
+                </div>
+                <div class="qa-prompt-actions">
+                  <button type="button" id="btnCopyReviewPrompt" class="btn btn-accent btn-sm">複製獨立 AI 檢核提示詞</button>
+                  <button type="button" id="btnCopyBlindPrompt" class="btn btn-secondary btn-sm">複製盲解測試提示詞</button>
+                </div>
+              </div>
+
+              <div class="qa-status-strip" id="qaSummaryStrip"></div>
+
+              <div id="checklistContainer" class="checklist-list"></div>
+            </section>
+
+            <!-- C. 英文編輯人工審核 -->
+            <section class="card review-card" aria-labelledby="reviewCardHeading">
+              <div class="card-top-bar">
+                <div>
+                  <h3 id="reviewCardHeading">英文編輯人工審核</h3>
+                  <p class="card-sub">所有題目須經英文編輯完成 6 項品質檢核並核准後，方可納入正式教材。</p>
+                </div>
+                <span id="reviewLastUpdated" class="updated-time">尚未儲存審核紀錄</span>
+              </div>
+
+              <form id="reviewForm" novalidate>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>審核狀態</label>
+                    <div class="status-radio-group" role="radiogroup" aria-label="人工審核狀態">
+                      <label class="status-option opt-pending">
+                        <input type="radio" name="reviewStatus" value="pending" />
+                        <span>待審核</span>
+                      </label>
+                      <label class="status-option opt-revision">
+                        <input type="radio" name="reviewStatus" value="needs_revision" />
+                        <span>需修改</span>
+                      </label>
+                      <label class="status-option opt-approved">
+                        <input type="radio" name="reviewStatus" value="approved" />
+                        <span>已核准</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="reviewerName">審核人員</label>
+                    <input type="text" id="reviewerName" placeholder="例如：英文編輯 王老師" maxlength="40" />
+                  </div>
+                </div>
+
+                <div id="approvalGuardAlert" class="inline-alert" hidden></div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="reviewNotes">審核備註</label>
+                    <textarea id="reviewNotes" rows="3" placeholder="記錄語感、題幹明確度、AI 獨立檢核結果摘要等備註..."></textarea>
+                  </div>
+                  <div class="form-group">
+                    <label for="revisionSuggestions">修訂建議</label>
+                    <textarea id="revisionSuggestions" rows="3" placeholder="若需修改，請具體說明應調整的選項、語法、字彙或解析內容..."></textarea>
+                  </div>
+                </div>
+
+                <div class="review-actions">
+                  <button type="submit" class="btn btn-primary">儲存檢核與審核紀錄</button>
+                  <button type="button" id="btnResetItemQa" class="btn btn-ghost">重設本題檢核狀態</button>
+                </div>
+              </form>
+
+              <div class="history-section">
+                <h4>本題審核紀錄</h4>
+                <ul id="reviewHistoryList" class="history-list"></ul>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 新增原創題目草稿 Modal -->
+  <div id="addDraftModal" class="modal-backdrop no-print" hidden role="dialog" aria-modal="true" aria-labelledby="addDraftTitle">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="addDraftTitle">新增原創題目草稿（手動建立／貼入 AI 產出）</h3>
+        <button type="button" class="modal-close" data-close-modal="addDraftModal" aria-label="關閉">×</button>
+      </div>
+      <form id="addDraftForm" class="modal-body">
+        <p class="modal-hint">新增之草稿將預設為「待審核」，且 6 項品質檢核預設皆為「尚未檢核」。請確保內容為原創題目，勿貼入受版權保護之歷屆考題。</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newGrade">年級 *</label>
+            <select id="newGrade" required>
+              <option value="國中一年級">國中一年級</option>
+              <option value="國中二年級">國中二年級</option>
+              <option value="國中三年級">國中三年級</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newType">題型 *</label>
+            <select id="newType" required>
+              <option value="文法選擇題">文法選擇題</option>
+              <option value="閱讀理解">閱讀理解</option>
+              <option value="情境式閱讀題">情境式閱讀題</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newDifficulty">難度 *</label>
+            <select id="newDifficulty" required>
+              <option value="基礎（CEFR A1+–A2）">基礎（CEFR A1+–A2）</option>
+              <option value="中等（CEFR A2+）" selected>中等（CEFR A2+）</option>
+              <option value="進階（CEFR A2+–B1-）">進階（CEFR A2+–B1-）</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newTopic">主題 *</label>
+            <input type="text" id="newTopic" required placeholder="例如：校園運動會公告" maxlength="60" />
+          </div>
+          <div class="form-group">
+            <label for="newObjective">教材學習目標 *</label>
+            <input type="text" id="newObjective" required placeholder="例如：能依據時間線索判斷正確時態" maxlength="100" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="newPassage">閱讀文本／情境內容（文法選擇題可留空）</label>
+          <textarea id="newPassage" rows="4" placeholder="貼入原創短文、對話、海報或公告內容..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="newGlossary">超綱字詞中文加註（選填）</label>
+          <input type="text" id="newGlossary" placeholder="例如：brochure 宣傳手冊；renew 續借" maxlength="120" />
+        </div>
+
+        <div class="form-group">
+          <label for="newStem">英文題目（題幹） *</label>
+          <textarea id="newStem" rows="2" required placeholder="輸入英文題幹..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newOptA">選項 (A) *</label>
+            <input type="text" id="newOptA" required />
+          </div>
+          <div class="form-group">
+            <label for="newOptB">選項 (B) *</label>
+            <input type="text" id="newOptB" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newOptC">選項 (C) *</label>
+            <input type="text" id="newOptC" required />
+          </div>
+          <div class="form-group">
+            <label for="newOptD">選項 (D) *</label>
+            <input type="text" id="newOptD" required />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="newAnswer">正確答案 *</label>
+            <select id="newAnswer" required>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+            </select>
+          </div>
+          <div class="form-group flex-2">
+            <label for="newExplanation">繁體中文解析 *</label>
+            <textarea id="newExplanation" rows="3" required placeholder="請說明正確答案依據，並簡述其餘三個選項為何不正確..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="addDraftModal">取消</button>
+          <button type="submit" class="btn btn-primary">儲存至本機題庫（待審核）</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 可列印品質檢核報告 Modal -->
+  <div id="reportModal" class="modal-backdrop print-root" hidden role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+    <div class="modal-dialog modal-xl print-sheet">
+      <div class="modal-header no-print">
+        <h3 id="reportModalTitle">品質檢核與人工審核報告預覽</h3>
+        <div class="modal-header-actions">
+          <button type="button" id="btnPrintReport" class="btn btn-primary btn-sm">列印 / 另存 PDF</button>
+          <button type="button" id="btnExportCsvFromReport" class="btn btn-secondary btn-sm">匯出 CSV</button>
+          <button type="button" class="modal-close" data-close-modal="reportModal" aria-label="關閉">×</button>
+        </div>
+      </div>
+      <div class="modal-body report-body" id="reportContent"></div>
+    </div>
+  </div>
+
+  <!-- 複製／儲存提示 Toast -->
+  <div id="toast" class="toast no-print" role="status" aria-live="polite" hidden></div>
+
+  <footer class="site-footer no-print">
+    <div class="container footer-inner">
+      <span>AI 英文智慧命題與教材檢核系統｜第一版示範系統（純前端離線運作）</span>
+      <span>原創題庫與品質檢核工作台｜資料存放於本機瀏覽器 localStorage</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
